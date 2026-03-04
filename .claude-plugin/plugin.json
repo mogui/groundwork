@@ -1,6 +1,6 @@
 {
-    "name": "spec-skills-design",
-    "description": "A greeting plugin to learn the basics",
+    "name": "groundwork",
+    "description": "BDD specification plugin — structured discovery interviews produce Gherkin feature files, then generates executable Cucumber.js step definitions to verify implementations.",
     "version": "1.0.0",
     "author": {
         "name": "Niko Usai"

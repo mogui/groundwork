@@ -1,18 +1,45 @@
 ---
 name: groundwork-discovery
 description: >
-  Conducts a structured Socratic interview to elicit Gherkin BDD scenarios from a high-level feature description.
-  Use this skill whenever the user wants to define, specify, or design a new feature before implementation —
-  even if they just say "I need to build X" or "let's design this feature" or "help me think through this functionality".
-  Also use when the user discovers a new edge case or bug during use and wants to formally capture it.
-  Outputs versioned .feature files that serve as the source of truth for implementation and testing.
-  Commands: /groundwork new, /groundwork extend, /groundwork review
+  Use BEFORE brainstorming — when the user wants to capture WHAT a feature should do as Gherkin scenarios.
+  Trigger when the user says "I need to build X", "let's spec this out", "what should this feature do?",
+  or wants to formally capture a new edge case or bug as a BDD scenario.
 ---
 
 # groundwork-discovery
 
 Elicits complete Gherkin scenarios through structured conversation — before any code is written.
 The `.feature` files produced here are the source of truth for both Superpowers (implementation) and groundwork-verify (validation).
+
+## Where this fits in the Superpowers flow
+
+```
+groundwork-discovery (WHAT should it do?) → brainstorming (HOW should we build it?) → writing-plans → implementation → groundwork-verify
+```
+
+This skill captures **observable behaviour** as Gherkin scenarios. It does NOT decide architecture, tech choices, or implementation approach — that's brainstorming's job. After discovery writes the `.feature` file, suggest the user continues with the brainstorming skill.
+
+## When to use
+
+- User wants to specify WHAT a feature should do — before deciding HOW to build it
+- User says "I need to build X" — start here to capture behaviour, then hand off to brainstorming
+- A bug or edge case was found and needs formal capture as a scenario
+- User says "let's spec this out", "what should this feature do?", "what are the edge cases?"
+
+## When NOT to use
+
+- User already knows WHAT and wants to decide HOW (architecture, tech choices) → use brainstorming directly
+- User already has `.feature` files and wants to generate tests → use groundwork-verify
+- User wants to run or debug existing tests
+- The task is pure implementation with no specification gap
+
+## Quick reference
+
+| Command | Purpose | Output |
+|---|---|---|
+| `/groundwork new <feature>` | Full discovery interview from scratch | `docs/specs/features/<domain>/<feature>.feature` |
+| `/groundwork extend <feature>` | Append scenarios to existing feature | Same file, new scenarios appended |
+| `/groundwork review [feature]` | Format features as Superpowers context | Formatted context block |
 
 ## First action
 
@@ -61,6 +88,9 @@ Discovery from scratch for a new feature.
 
 **Output:** `docs/specs/features/<domain>/<feature-name>.feature`
 
+**After writing the file**, suggest continuing with the superpowers flow:
+> "The feature spec is ready. To design HOW to build this, continue with the **brainstorming** skill."
+
 ---
 
 ### `/groundwork extend <feature-name>`
@@ -76,6 +106,9 @@ Add new scenarios to an existing feature — typically edge cases discovered dur
 5. Append new scenarios to the file
 
 **Critical rule:** Never modify existing scenarios. Append only.
+
+**After appending**, suggest continuing with the superpowers flow:
+> "New scenarios added. If this changes the implementation approach, continue with the **brainstorming** skill to revisit the design."
 
 ---
 
@@ -172,3 +205,18 @@ docs/
 ```
 
 If the `docs/specs/` directory doesn't exist, create it. If `CONVENTIONS.md` doesn't exist, offer to create it after the first `.feature` file is written.
+
+---
+
+## Common mistakes
+
+| Mistake | Fix |
+|---|---|
+| Writing UI-specific steps ("clicks button with id btn-submit") | Write behavioural steps ("attempts login with incorrect credentials") |
+| Forgetting the interface tag (`@api`, `@cli`, `@web`) on Feature line | Always ask which interface the feature exposes — groundwork-verify depends on it |
+| Asking multiple questions at once | One question per message — wait for the answer before continuing |
+| Skipping phases because "it's a simple feature" | Run all phases — skip only when the user explicitly says "skip" or "move on" |
+| Modifying existing scenarios in `/groundwork extend` | Append only — never change existing scenarios |
+| Writing implementation details in scenarios | Scenarios describe observable behaviour, not how the system achieves it |
+| Discussing architecture or tech choices during discovery | Discovery captures WHAT, not HOW — redirect architecture questions to brainstorming |
+| Skipping the brainstorming handoff after writing the feature file | Always suggest continuing with brainstorming to design the implementation |

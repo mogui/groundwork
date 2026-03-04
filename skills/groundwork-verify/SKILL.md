@@ -1,19 +1,42 @@
 ---
 name: groundwork-verify
 description: >
-  Generates executable BDD step definitions from Gherkin .feature files by inspecting the system's external interface.
-  Use this skill whenever the user wants to validate that implemented code matches its specifications,
-  generate integration tests from feature files, check if new code still satisfies existing scenarios,
-  or set up a BDD test suite. Trigger after Superpowers (or any implementation phase) completes a feature.
-  Also use when the user asks "does the code do what we specified?" or "generate tests from the feature files".
-  Uses Cucumber.js + Playwright as fixed toolchain — tests are black-box against the system's external interface.
-  Commands: /groundwork verify with optional feature name
+  Use when the user wants to validate that implemented code matches its specifications,
+  generate integration tests from feature files, or check if code still satisfies existing scenarios.
+  Trigger after implementation completes a feature. Also use when the user asks
+  "does the code do what we specified?" or "generate tests from the feature files".
 ---
 
 # groundwork-verify
 
 Generates Cucumber.js step definitions that test the system as a black box through its external interface.
 Step definitions live in `docs/specs` — a self-contained layer with its own `package.json`, independent of the project's stack.
+
+## When to use
+
+- After implementation completes a feature and you need to verify it matches the spec
+- User asks to generate tests from `.feature` files
+- User asks "does the code do what we specified?"
+- New scenarios were added via `/groundwork extend` and step definitions need updating
+
+## When NOT to use
+
+- User wants to define or design a feature → use groundwork-discovery
+- User wants unit tests or internal code tests — this skill is black-box only
+- No `.feature` files exist yet
+
+## Quick reference
+
+| Command | Purpose |
+|---|---|
+| `/groundwork verify <feature>` | Generate/update step definitions for one feature |
+| `/groundwork verify` | Generate/update step definitions for all features |
+
+| Feature tag | Tooling | Assertions via |
+|---|---|---|
+| `@api` | `node-fetch` | HTTP status, JSON body |
+| `@cli` | `child_process.exec` | stdout, stderr, exit code |
+| `@web` | Playwright | Page elements, navigation |
 
 ## First action
 
@@ -158,8 +181,7 @@ Then('the operation fails with an authentication error', async function() {
 ```javascript
 // Scenario: <scenario name from .feature>
 When('they run the export command', async function() {
-  const { stdout, stderr, exitCode } = await exec(`node cli.js export --user=${this.user.id}`);
-  this.cliOutput = { stdout, stderr, exitCode };
+  this.cliOutput = await exec(`node cli.js export --user=${this.user.id}`);
 });
 
 Then('the export succeeds', async function() {
@@ -220,7 +242,7 @@ BASE_URL=http://localhost:3000
 
 6. Add to the project root `package.json` (if it exists):
 ```json
-"test:bdd": "cd specs && npm test"
+"test:bdd": "cd docs/specs && npm test"
 ```
 
 7. Add `docs/specs/.env.test` to `.gitignore`
@@ -250,3 +272,16 @@ Next steps:
   2. Review // TODO: comments in generated files
   3. cd docs/specs && npm install && npm test
 ```
+
+---
+
+## Common mistakes
+
+| Mistake | Fix |
+|---|---|
+| Rewriting working step definitions | Always run gap analysis first — only generate what is missing or broken |
+| Assuming the interface type without checking the tag | Ask the user if no `@api`, `@cli`, or `@web` tag is present |
+| Importing or calling internal project code in step definitions | Step definitions are black-box — interact only through the external interface |
+| Skipping `@pending` scenarios silently | Generate a stub with `pending()` so they show up in test reports |
+| Deleting obsolete step definitions without asking | Report obsolete definitions to the user — never delete automatically |
+| Forgetting `// TODO:` markers on config-dependent code | Mark seed mechanisms, selectors, and URLs that need manual adjustment |
