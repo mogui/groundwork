@@ -84,6 +84,20 @@ web: http://localhost:5173
 type: bearer | cookie | none
 token_env: TEST_AUTH_TOKEN        # env var name, not the value
 
+## Auth flow
+# How to authenticate in tests (step-by-step)
+web:
+  page: /login
+  fields:
+    - email → input
+    - password → input
+  submit: click "Sign in" button
+  result: session cookie set, redirects to /dashboard
+api:
+  endpoint: POST /auth/login
+  body: { email, password }
+  result: 200 { token }
+
 ## Endpoint map
 # Format: METHOD /path → expected response (success | error)
 POST /auth/login         → 200 {token} | 401
@@ -96,11 +110,39 @@ login     → /login
 dashboard → /dashboard
 checkout  → /checkout
 
+## UI structure
+# Key elements per page, used to generate selectors
+# Format: <page> → list of interactive/assertable elements
+
+/login:
+  - email input
+  - password input
+  - submit button ("Sign in")
+  - error message (visible on auth failure)
+
+/dashboard:
+  - recent orders table (columns: id, date, status, total)
+  - "New order" button
+
+/checkout:
+  - cart items list
+  - cart total
+  - empty cart message (visible when cart is empty)
+  - card number input
+  - card expiry input
+  - card cvc input
+  - payment form container
+  - submit button ("Pay now")
+  - order confirmation with order number (visible on success)
+  - payment error message (visible on payment failure)
+
 ## Notes
 # Any contextual information useful for tests, not inferable from scenarios
 ```
 
-The **Endpoint map** section is the most important: it explicitly maps scenarios → interface, forcing the dev to declare the contract instead of letting the skill deduce it from code.
+The **Endpoint map** and **UI structure** sections are the most important: they explicitly map scenarios → interface, forcing the dev to declare the contract instead of letting the skill deduce it from code.
+
+**How to create this file:** Run `/groundwork scaffold-interface` to generate a draft from the codebase, then review and approve. Or write it manually.
 
 ---
 
@@ -163,29 +205,20 @@ SPEC-INTERFACE.md exists?
 │         ↓
 │    all necessary information present?
 │    ├── YES → proceed to Phase 2
-│    └── NO → ask only the missing gaps, update the file
+│    └── NO → ask the dev for the missing gaps, update the file
 │
-└── NO → enter interview mode
-          generate SPEC-INTERFACE.md at the end
-          proceed to Phase 2
+└── NO → STOP
+          tell the user to run /groundwork scaffold-interface first
+          or create docs/specs/SPEC-INTERFACE.md manually
 ```
 
-#### Interview (only if the file doesn't exist or is incomplete)
+**This skill does not create SPEC-INTERFACE.md from scratch.** That is the job of `/groundwork scaffold-interface` (which reads the codebase and generates a draft) or the dev (who writes it manually). Verify only reads and consumes the file.
 
-Ask questions in order, one at a time:
+#### Incremental update (gaps in existing file)
 
-1. *"Interface type: REST API, Web UI, or both?"*
-2. *"Base URL of the system in test environment?"*
-3. *"How does it authenticate? Bearer token, session cookie, or none?"*
-4. *"For each scenario in the `.feature`, which endpoint or page is involved?"*
+If `SPEC-INTERFACE.md` exists but has gaps (e.g. a new scenario references an unmapped endpoint or page):
 
-Question 4 is the core anti-bias mechanism: the dev manually maps scenarios → interface, without the skill looking at code.
-
-#### Incremental update
-
-If `SPEC-INTERFACE.md` exists but has gaps (e.g. a new scenario references an unmapped endpoint):
-
-- Ask only for the missing information
+- Ask the dev only for the missing information
 - Update the file with append, without touching existing sections
 - Explicitly report what was added
 

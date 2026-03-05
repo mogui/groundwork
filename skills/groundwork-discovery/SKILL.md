@@ -14,10 +14,12 @@ The `.feature` files produced here are the source of truth for both Superpowers 
 ## Where this fits in the Superpowers flow
 
 ```
-groundwork-discovery (WHAT should it do?) → brainstorming (HOW should we build it?) → writing-plans → implementation → groundwork-verify
+groundwork-discovery (WHAT) → brainstorming (HOW) → writing-plans → implementation → groundwork-scaffold-interface → groundwork-verify
 ```
 
-This skill captures **observable behaviour** as Gherkin scenarios. It does NOT decide architecture, tech choices, or implementation approach — that's brainstorming's job. After discovery writes the `.feature` file, suggest the user continues with the brainstorming skill.
+This skill captures **observable behaviour** as Gherkin scenarios through conversation only. It does NOT decide architecture, tech choices, or implementation approach — that's brainstorming's job. After discovery writes the `.feature` file, suggest the user continues with the brainstorming skill.
+
+**Epistemic constraint:** Do not read application code (`src/`, `app/`, `lib/`) to generate scenarios. Scenarios describe intended behaviour from the user's perspective — reading code would encode implementation details into the specification.
 
 ## When to use
 
@@ -143,12 +145,13 @@ Then the operation fails with an authentication error
 ### Interface type tag
 
 Every `.feature` file must have a tag on the `Feature:` line declaring the interface type.
-This is consumed by groundwork-verify to select the right toolchain.
+These tags match the `## Type` values in `SPEC-INTERFACE.md`.
 
 ```gherkin
-@api        # REST or GraphQL
-@cli        # command-line interface
+@rest       # REST or GraphQL API
 @web        # browser-based frontend
+@rest+web   # both API and web UI
+@cli        # command-line interface
 ```
 
 ### Scenario tags
@@ -165,7 +168,7 @@ This is consumed by groundwork-verify to select the right toolchain.
 ## Output format
 
 ```gherkin
-@api
+@rest
 Feature: <feature name>
   <one-line description>
 
@@ -213,7 +216,7 @@ If the `docs/specs/` directory doesn't exist, create it. If `CONVENTIONS.md` doe
 | Mistake | Fix |
 |---|---|
 | Writing UI-specific steps ("clicks button with id btn-submit") | Write behavioural steps ("attempts login with incorrect credentials") |
-| Forgetting the interface tag (`@api`, `@cli`, `@web`) on Feature line | Always ask which interface the feature exposes — groundwork-verify depends on it |
+| Forgetting the interface tag (`@rest`, `@web`, `@rest+web`, `@cli`) on Feature line | Always ask which interface the feature exposes — must match `## Type` in `SPEC-INTERFACE.md` |
 | Asking multiple questions at once | One question per message — wait for the answer before continuing |
 | Skipping phases because "it's a simple feature" | Run all phases — skip only when the user explicitly says "skip" or "move on" |
 | Modifying existing scenarios in `/groundwork extend` | Append only — never change existing scenarios |
