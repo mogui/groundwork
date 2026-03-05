@@ -12,6 +12,19 @@ description: >
 Generates Cucumber.js step definitions that test the system as a black box through its external interface.
 Step definitions live in `docs/specs` — a self-contained layer with its own `package.json`, independent of the project's stack.
 
+## CONSTRAINT — Epistemic perimeter
+
+```
+This skill NEVER reads files outside docs/specs/.
+No access to src/, app/, lib/, or any application directory.
+If information is missing, ASK the user — never infer it from code.
+```
+
+This is non-negotiable. The skill must have exactly the same information as the Gherkin — no more, no less.
+Reading application code introduces cognitive bias: the skill learns patterns from the implementation (including bugs) and replicates them in step definitions. Tests end up validating the implementation instead of the contract.
+
+**The constraint prevents the bias vector** — it doesn't matter if the dev knows the code. What matters is that the skill doesn't use it as source of truth.
+
 ## When to use
 
 - After implementation completes a feature and you need to verify it matches the spec
@@ -32,16 +45,60 @@ Step definitions live in `docs/specs` — a self-contained layer with its own `p
 | `/groundwork verify <feature>` | Generate/update step definitions for one feature |
 | `/groundwork verify` | Generate/update step definitions for all features |
 
-| Feature tag | Tooling | Assertions via |
+| Interface type | Tooling | Assertions via |
 |---|---|---|
-| `@api` | `node-fetch` | HTTP status, JSON body |
-| `@cli` | `child_process.exec` | stdout, stderr, exit code |
-| `@web` | Playwright | Page elements, navigation |
+| `rest` / `rest+web` | `node-fetch` | HTTP status, JSON body |
+| `cli` | `child_process.exec` | stdout, stderr, exit code |
+| `web` / `rest+web` | Playwright | Page elements, navigation |
 
 ## First action
 
 Read `docs/specs/CONVENTIONS.md` if it exists.
-Then read existing step definitions in `docs/specs/step-definitions/` to understand the style already in use before generating new ones.
+Then read existing step definitions in `docs/specs/step-definitions/` to understand the style already in use.
+
+**Do NOT read any file outside `docs/specs/`.**
+
+---
+
+## SPEC-INTERFACE.md — Interface contract
+
+`SPEC-INTERFACE.md` lives in `docs/specs/` and is the **only** source from which this skill gets information about the system under test.
+
+It is written by the dev, not inferred from code. This is the critical point: describing the system explicitly breaks implicit bias — the dev reasons about the contract, not the implementation.
+
+### Structure
+
+```markdown
+# Interface Contract
+
+## Type
+rest | web | rest+web | cli
+
+## Base URLs
+api: http://localhost:3000/api/v1
+web: http://localhost:5173
+
+## Auth
+type: bearer | cookie | none
+token_env: TEST_AUTH_TOKEN        # env var name, not the value
+
+## Endpoint map
+# Format: METHOD /path → expected response (success | error)
+POST /auth/login         → 200 {token} | 401
+GET  /users/:id          → 200 {user} | 404
+POST /orders             → 201 {order} | 422
+
+## Web entry points
+# Format: <feature> → <path>
+login     → /login
+dashboard → /dashboard
+checkout  → /checkout
+
+## Notes
+# Any contextual information useful for tests, not inferable from scenarios
+```
+
+The **Endpoint map** section is the most important: it explicitly maps scenarios → interface, forcing the dev to declare the contract instead of letting the skill deduce it from code.
 
 ---
 
@@ -51,13 +108,13 @@ Then read existing step definitions in `docs/specs/step-definitions/` to underst
 
 The system under test exposes a standard external interface. Step definitions never touch internal code — they interact exclusively through:
 
-- **`@api`** — REST / GraphQL endpoints
-- **`@cli`** — command-line process
-- **`@web`** — browser UI
+- **REST/GraphQL** — endpoints
+- **CLI** — command-line process
+- **Web** — browser UI
 
 ### Fixed toolchain
 
-Cucumber.js for all cases. Playwright added if any feature is tagged `@web`.
+Cucumber.js for all cases. Playwright added if any feature uses the `web` interface type.
 
 ```
 docs/
@@ -65,6 +122,7 @@ docs/
     package.json              ← cucumber.js (+ playwright if needed)
     cucumber.js               ← cucumber config
     CONVENTIONS.md
+    SPEC-INTERFACE.md         ← interface contract (only source of system info)
     features/
       <domain>/<feature>.feature
     step-definitions/
@@ -77,13 +135,13 @@ docs/
 
 ### Interface → tooling map
 
-| Feature tag | HTTP client | Notes |
+| Interface type | HTTP client | Notes |
 |---|---|---|
-| `@api` | `node-fetch` | JSON request/response assertions |
-| `@cli` | `child_process.exec` | spawn process, assert stdout/exit code |
-| `@web` | Playwright | headless browser, behavioural assertions |
+| `rest` | `node-fetch` | JSON request/response assertions |
+| `cli` | `child_process.exec` | spawn process, assert stdout/exit code |
+| `web` | Playwright | headless browser, behavioural assertions |
 
-A single feature can mix `@api` and `@web` steps if needed.
+A single feature can mix `rest` and `web` steps if the interface type is `rest+web`.
 
 ---
 
@@ -97,14 +155,37 @@ Generate or update step definitions. Without argument, processes all `.feature` 
 
 ### Phase 1 — Interface discovery
 
-Read all target `.feature` files and identify the interface tag (`@api`, `@cli`, `@web`).
+```
+SPEC-INTERFACE.md exists?
+├── YES → read the file
+│         ↓
+│    all necessary information present?
+│    ├── YES → proceed to Phase 2
+│    └── NO → ask only the missing gaps, update the file
+│
+└── NO → enter interview mode
+          generate SPEC-INTERFACE.md at the end
+          proceed to Phase 2
+```
 
-If a feature file has no interface tag, ask before proceeding:
-> "This feature has no `@api`, `@cli` or `@web` tag. Which interface should the tests use?"
+#### Interview (only if the file doesn't exist or is incomplete)
 
-Never assume the interface type.
+Ask questions in order, one at a time:
 
-Also check: is there a `BASE_URL` or entry point already configured somewhere? (`.env`, `README`, existing step definitions)
+1. *"Interface type: REST API, Web UI, or both?"*
+2. *"Base URL of the system in test environment?"*
+3. *"How does it authenticate? Bearer token, session cookie, or none?"*
+4. *"For each scenario in the `.feature`, which endpoint or page is involved?"*
+
+Question 4 is the core anti-bias mechanism: the dev manually maps scenarios → interface, without the skill looking at code.
+
+#### Incremental update
+
+If `SPEC-INTERFACE.md` exists but has gaps (e.g. a new scenario references an unmapped endpoint):
+
+- Ask only for the missing information
+- Update the file with append, without touching existing sections
+- Explicitly report what was added
 
 ---
 
@@ -133,9 +214,9 @@ Generating...
 
 ### Phase 3 — Generate step definitions
 
-For each step definition:
+Use information from `SPEC-INTERFACE.md` (base URLs, endpoints, auth type) to generate step definitions. **Never look at application code to determine URLs, selectors, or configuration.**
 
-**`@api` pattern:**
+**REST pattern:**
 ```javascript
 // Scenario: <scenario name from .feature>
 Given('a registered user exists with email {string}', async function(email) {
@@ -144,6 +225,7 @@ Given('a registered user exists with email {string}', async function(email) {
 });
 
 When('they attempt login with incorrect credentials', async function() {
+  // URL from SPEC-INTERFACE.md endpoint map
   this.response = await fetch(`${process.env.BASE_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -156,7 +238,7 @@ Then('the operation fails with an authentication error', async function() {
 });
 ```
 
-**`@web` pattern:**
+**Web pattern:**
 ```javascript
 // Scenario: <scenario name from .feature>
 Given('a registered user exists', async function() {
@@ -165,7 +247,8 @@ Given('a registered user exists', async function() {
 });
 
 When('they attempt login with incorrect credentials', async function() {
-  await this.page.goto(`${process.env.BASE_URL}/login`);
+  // Path from SPEC-INTERFACE.md web entry points
+  await this.page.goto(`${process.env.WEB_URL}/login`);
   await this.page.fill('[data-testid="email"]', this.user.email);
   await this.page.fill('[data-testid="password"]', 'wrong');
   await this.page.click('[data-testid="submit"]');
@@ -177,7 +260,7 @@ Then('the operation fails with an authentication error', async function() {
 });
 ```
 
-**`@cli` pattern:**
+**CLI pattern:**
 ```javascript
 // Scenario: <scenario name from .feature>
 When('they run the export command', async function() {
@@ -191,7 +274,8 @@ Then('the export succeeds', async function() {
 
 **Rules for all patterns:**
 - Add `// Scenario: <name>` comment at the top referencing the `.feature` origin
-- Mark with `// TODO:` anything requiring manual configuration (seed mechanisms, selectors, URLs)
+- Use URLs and paths from `SPEC-INTERFACE.md` — comment the source (e.g. `// URL from SPEC-INTERFACE.md endpoint map`)
+- Mark with `// TODO:` anything requiring manual configuration (seed mechanisms, selectors)
 - For `@pending` scenarios, generate a stub with `pending()` — do not skip silently
 - For `@out-of-scope` scenarios, generate nothing
 
@@ -216,7 +300,7 @@ If `docs/specs/package.json` does not exist:
   }
 }
 ```
-Add `"@playwright/test": "^1.0.0"` and `"playwright": "^1.0.0"` if any `@web` feature exists.
+Add `"@playwright/test": "^1.0.0"` and `"playwright": "^1.0.0"` if any `web` interface type exists.
 
 2. Generate `docs/specs/cucumber.js`:
 ```javascript
@@ -234,10 +318,10 @@ module.exports = {
 
 4. Generate `docs/specs/support/hooks.js` with `Before` / `After` lifecycle hooks for setup and teardown
 
-5. Generate `docs/specs/.env.test.example`:
+5. Generate `docs/specs/.env.test.example` based on `SPEC-INTERFACE.md`:
 ```
 BASE_URL=http://localhost:3000
-# Add other required env vars here
+# Add other required env vars from SPEC-INTERFACE.md here
 ```
 
 6. Add to the project root `package.json` (if it exists):
@@ -246,6 +330,23 @@ BASE_URL=http://localhost:3000
 ```
 
 7. Add `docs/specs/.env.test` to `.gitignore`
+
+---
+
+## Drift handling
+
+`SPEC-INTERFACE.md` can become stale if the API changes without updating the file. The skill cannot detect this automatically — that would require reading application code, violating the constraint.
+
+**Mitigation strategy:** CI failure is the drift signal.
+
+```
+CI red for 404 / element not found
+   → dev updates SPEC-INTERFACE.md
+   → /groundwork verify <feature>   (regenerates step definitions)
+   → CI green
+```
+
+Drift is detected at runtime, not compile time. This is an acceptable trade-off: the cost of a false negative in CI is much lower than the cost of tests that validate bugs.
 
 ---
 
@@ -268,7 +369,7 @@ Obsolete (no matching scenario — not deleted):
   docs/specs/step-definitions/auth/register.steps.js     → "register with invite code"
 
 Next steps:
-  1. Copy docs/specs/.env.test.example → docs/specs/.env.test and fill in BASE_URL
+  1. Copy docs/specs/.env.test.example → docs/specs/.env.test and fill in values
   2. Review // TODO: comments in generated files
   3. cd docs/specs && npm install && npm test
 ```
@@ -279,9 +380,11 @@ Next steps:
 
 | Mistake | Fix |
 |---|---|
+| Reading application code (src/, app/, lib/) to determine URLs or config | **NEVER.** Use only `SPEC-INTERFACE.md`. If info is missing, ask the user. |
 | Rewriting working step definitions | Always run gap analysis first — only generate what is missing or broken |
-| Assuming the interface type without checking the tag | Ask the user if no `@api`, `@cli`, or `@web` tag is present |
+| Assuming the interface type without checking `SPEC-INTERFACE.md` | Read the file or ask the user — never infer from code |
 | Importing or calling internal project code in step definitions | Step definitions are black-box — interact only through the external interface |
 | Skipping `@pending` scenarios silently | Generate a stub with `pending()` so they show up in test reports |
 | Deleting obsolete step definitions without asking | Report obsolete definitions to the user — never delete automatically |
 | Forgetting `// TODO:` markers on config-dependent code | Mark seed mechanisms, selectors, and URLs that need manual adjustment |
+| Inferring endpoints from code when `SPEC-INTERFACE.md` has gaps | Ask the user to update `SPEC-INTERFACE.md` — never fill gaps from code |
