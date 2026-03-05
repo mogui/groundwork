@@ -251,16 +251,17 @@ Given('a registered user exists', async function() {
 When('they attempt login with incorrect credentials', async function() {
   // Path from SPEC-INTERFACE.md web entry points
   await this.page.goto(`${process.env.WEB_URL}/login`);
-  await this.page.fill('[data-testid="email"]', this.user.email);
-  await this.page.fill('[data-testid="password"]', 'wrong');
-  await this.page.click('[data-testid="submit"]');
-  // TODO: adjust selectors to match your actual markup
+  await this.page.fill('[data-testid="login-email"]', this.user.email);
+  await this.page.fill('[data-testid="login-password"]', 'wrong');
+  await this.page.click('[data-testid="login-submit"]');
 });
 
 Then('the operation fails with an authentication error', async function() {
-  await expect(this.page.locator('[data-testid="error-message"]')).toBeVisible();
+  await expect(this.page.locator('[data-testid="login-error"]')).toBeVisible();
 });
 ```
+
+**Selector naming convention:** Use `data-testid="<page>-<element>"` (e.g. `login-email`, `checkout-submit`). Choose names that describe the UI concept from the scenario, not the implementation. These selectors are declared in the step definitions first — the dev adds them to the markup after.
 
 **CLI pattern:**
 ```javascript
@@ -373,8 +374,39 @@ Obsolete (no matching scenario — not deleted):
 Next steps:
   1. Copy docs/specs/.env.test.example → docs/specs/.env.test and fill in values
   2. Review // TODO: comments in generated files
-  3. cd docs/specs && npm install && npm test
+  3. Add the required selectors (see prompt below)
+  4. cd docs/specs && npm install && npm test
 ```
+
+### Selector prompt (only for `web` / `rest+web` features)
+
+After the output summary, if any step definition uses Playwright selectors, generate a **ready-to-copy prompt** listing every `data-testid` the step definitions expect. The dev pastes this prompt into their coding agent to add the selectors to the markup.
+
+Format:
+
+```
+---
+The following data-testid attributes are required by the BDD step definitions.
+Add them to the corresponding UI elements in the application code.
+
+Page: /login
+  - data-testid="login-email"       → email input field
+  - data-testid="login-password"    → password input field
+  - data-testid="login-submit"      → submit button
+  - data-testid="login-error"       → error message container (visible on auth failure)
+
+Page: /checkout
+  - data-testid="checkout-card"     → credit card input
+  - data-testid="checkout-submit"   → place order button
+  - data-testid="checkout-success"  → order confirmation message
+---
+```
+
+**Rules for the selector prompt:**
+- Group by page (from `SPEC-INTERFACE.md` web entry points)
+- Each line: the exact `data-testid` value + a short description of the expected element
+- Include selectors for assertions too (error messages, success states, content checks)
+- Only list selectors that appear in the generated step definitions — no extras
 
 ---
 

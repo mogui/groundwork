@@ -87,7 +87,6 @@ docs/
 ---
 
 ## Installation
-
-Install via the Cursor superpowers plugin. Both skills live in `skills/` and are picked up automatically.
-
-Each skill reads `docs/specs/CONVENTIONS.md` on every invocation. If it doesn't exist yet, `groundwork-discovery` will offer to create it after the first `.feature` file is written.
+```bash
+npx skills add mogui/groundwork
+```
