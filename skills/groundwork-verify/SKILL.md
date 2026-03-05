@@ -25,6 +25,8 @@ Reading application code introduces cognitive bias: the skill learns patterns fr
 
 **The constraint prevents the bias vector** — it doesn't matter if the dev knows the code. What matters is that the skill doesn't use it as source of truth.
 
+**Clarification:** Information provided verbally by the dev (e.g. "the endpoint changed to POST /refunds") is legitimate input. You MAY update `SPEC-INTERFACE.md` with information the dev tells you directly — the constraint forbids reading application files, not listening to the dev. The interview mechanism works the same way: the dev describes the interface, you write it down.
+
 ## When to use
 
 - After implementation completes a feature and you need to verify it matches the spec
